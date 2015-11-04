@@ -3,7 +3,6 @@ import spark.Spark;
 import spark.template.mustache.MustacheTemplateEngine;
 
 import java.sql.*;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -12,6 +11,8 @@ import java.util.HashMap;
  * Created by MattBrown on 11/4/15.
  */
 public class Calender {
+    static final int SHOW_COUNT = 5;
+
     public static void createTables(Connection conn) throws SQLException {
         Statement stmt = conn.createStatement();
         stmt.execute("CREATE TABLE IF NOT EXISTS events (id IDENTITY, description VARCHAR, start_date TIMESTAMP)");
@@ -24,10 +25,13 @@ public class Calender {
         stmt.execute();
     }
 
-    public static ArrayList<Event> selectEvents(Connection conn, boolean isAsc) throws SQLException {//creates t/f for isAsc
+    public static ArrayList<Event> selectEvents(Connection conn, boolean isAsc, int offSet) throws SQLException {//creates t/f for isAsc
         ArrayList<Event> events = new ArrayList();
-        String query = String.format("SELECT * FROM events ORDER BY start_date %s", isAsc ? "ASC" : "DESC"); //inline conditional
+
+        String query = String.format("SELECT * FROM events ORDER BY start_date %s LIMIT ? OFFSET ?", isAsc ? "ASC" : "DESC"); //inline conditional
         PreparedStatement stmt = conn.prepareStatement(query);
+        stmt.setInt(1, SHOW_COUNT);
+        stmt.setInt(2, offSet);
         ResultSet results = stmt.executeQuery();
         while((results.next())){
             Event event = new Event();
@@ -40,7 +44,7 @@ public class Calender {
 
     }
     public static ArrayList<Event> selectEvents(Connection conn) throws SQLException {
-        return selectEvents(conn, true); //opposite of the FIRST ArrayList<Event>
+        return selectEvents(conn, true, 0); //opposite of the FIRST ArrayList<Event>
     }
 
 
@@ -54,11 +58,19 @@ public class Calender {
                     String isAscStr = request.queryParams("isAsc");
                     boolean isAsc = isAscStr != null && isAscStr.equals("true");
 
+                    String offsetStr = request.queryParams("offset");
+                    int offset = 0;
+                    try{
+                        offset = Integer.valueOf(offsetStr);
+                    }catch (Exception e) {
+
+                    }
 
                     HashMap m = new HashMap();
                     m.put("now", LocalDateTime.now());
-                    m.put("events", selectEvents(conn, isAsc));
+                    m.put("events", selectEvents(conn, isAsc, offset));
                     m.put("isAsc", isAsc);
+                    m.put("nextOffset", offset + SHOW_COUNT);
 
                     return new ModelAndView(m, "events.html");
                 }),
@@ -73,7 +85,7 @@ public class Calender {
                     try {
                         LocalDateTime startDate = LocalDateTime.parse(startDateStr);
                         insertEvent(conn, description, startDate);
-                    }catch (Exception e){
+                    } catch (Exception e) {
 
                     }
                     response.redirect("/");
