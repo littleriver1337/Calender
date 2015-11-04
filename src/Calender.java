@@ -24,9 +24,10 @@ public class Calender {
         stmt.execute();
     }
 
-    public static ArrayList<Event> selectEvents(Connection conn) throws SQLException {
+    public static ArrayList<Event> selectEvents(Connection conn, boolean isAsc) throws SQLException {//creates t/f for isAsc
         ArrayList<Event> events = new ArrayList();
-        PreparedStatement stmt = conn.prepareStatement("SELECT * FROM events");
+        String query = String.format("SELECT * FROM events ORDER BY start_date %s", isAsc ? "ASC" : "DESC"); //inline conditional
+        PreparedStatement stmt = conn.prepareStatement(query);
         ResultSet results = stmt.executeQuery();
         while((results.next())){
             Event event = new Event();
@@ -38,6 +39,9 @@ public class Calender {
         return events;
 
     }
+    public static ArrayList<Event> selectEvents(Connection conn) throws SQLException {
+        return selectEvents(conn, true); //opposite of the FIRST ArrayList<Event>
+    }
 
 
     public static void main(String[] args) throws SQLException {
@@ -47,9 +51,15 @@ public class Calender {
         Spark.get(
                 "/",
                 ((request, response) -> {
+                    String isAscStr = request.queryParams("isAsc");
+                    boolean isAsc = isAscStr != null && isAscStr.equals("true");
+
+
                     HashMap m = new HashMap();
                     m.put("now", LocalDateTime.now());
-                    m.put("events", selectEvents(conn));
+                    m.put("events", selectEvents(conn, isAsc));
+                    m.put("isAsc", isAsc);
+
                     return new ModelAndView(m, "events.html");
                 }),
                 new MustacheTemplateEngine()
